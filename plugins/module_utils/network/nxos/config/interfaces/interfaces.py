@@ -135,23 +135,13 @@ class Interfaces(ResourceModule):
         for the Interfaces network resource.
         """
         begin = len(self.commands)
+        want_without_name = want.copy()
+        want_without_name.pop("name", None)
+        pre_pop_want = bool(want_without_name)
+        want_enable = want.pop("enabled", None)
+        have_enable = have.pop("enabled", None)
+        self.handle_enabled(want_enable, have_enable, "not_enabled", pre_pop_want)
         self.compare(parsers=self.parsers, want=want, have=have)
-
-        # Handle the 'enabled' state separately
-        want_enabled = want.get("enabled")
-        have_enabled = have.get("enabled")
-        if want_enabled is not None:
-            if want_enabled != have_enabled:
-                if want_enabled is True:
-                    self.addcmd(want, "enabled", True)
-                else:
-                    self.addcmd(want, "enabled", False)
-        elif not want and self.state == "overridden":
-            if have_enabled is not None:
-                self.addcmd(have, "enabled", False)
-        elif not want and self.state == "deleted":
-            if have_enabled:
-                self.addcmd(have, "enabled", False)
 
         # Handle the 'mode' state separately
         want_mode = want.get("mode")
@@ -217,3 +207,16 @@ class Interfaces(ResourceModule):
             interface_defs["L2_enabled"] = True if "no " in default_enabled.groups() else False
 
         return interface_defs
+    
+    def handle_enabled(self, want_enable, have_enable, parser, want):
+        if want_enable is None and have_enable is None:
+            if self.state == "replaced" or (self.state == "overridden" and want):
+                self.addcmd({parser: True}, parser, False)
+        else:
+            if want_enable is True and have_enable is False:
+                self.addcmd({parser: want_enable}, parser, want_enable)
+            elif want_enable is False and have_enable is None:
+                self.addcmd({parser: not want_enable}, parser, want_enable)
+            elif want_enable is None and have_enable is False:
+                if self.state in ["overridden", "deleted"] and not want:
+                    self.addcmd({parser: not have_enable}, parser, have_enable)

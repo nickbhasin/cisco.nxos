@@ -299,6 +299,7 @@ class TestNxosInterfacesModule(TestNxosModule):
             # truth for the objects that are explicitly listed.
             "interface Ethernet1/1",
             "description ansible",
+            "shutdown",
             "interface Ethernet1/2",
             "no description bar",
             "no ip forward",
@@ -306,18 +307,23 @@ class TestNxosInterfacesModule(TestNxosModule):
             "speed 10000",
             "duplex auto",
             "mtu 1500",
+            "shutdown",
             "interface Ethernet1/3",
             "description ansible",
+            "shutdown",
             "interface Ethernet1/3.101",
             "logging event port link-status",
             "description test-sub-intf",
             "shutdown",
             "interface Ethernet1/4",
             "switchport",
+            "shutdown",
             "interface Ethernet1/5",
             "service-policy input test-policy",
+            "shutdown",
             "interface loopback1",
             "description test-loopback",
+            "shutdown",
         ]
         set_module_args(playbook)
         result = self.execute_module(changed=True)
@@ -349,13 +355,13 @@ class TestNxosInterfacesModule(TestNxosModule):
           interface Ethernet1/6
             no shutdown
           interface loopback0
-            description test-loopback
+            description loopback0
         """,
         )
 
         playbook = dict(
             config=[
-                dict(name="Ethernet1/1", description="ansible", mode="layer3"),
+                dict(name="Ethernet1/1", description="ansible", mode="layer3", enabled=True),
                 dict(
                     name="Ethernet1/2",
                     speed=10000,
@@ -371,10 +377,9 @@ class TestNxosInterfacesModule(TestNxosModule):
                     enabled=False,
                 ),
                 dict(name="Ethernet1/4", mode="layer2"),
-                dict(name="Ethernet1/5"),
                 dict(name="loopback1", description="test-loopback"),
             ],
-            state="replaced",
+            state="overridden",
         )
         overridden = [
             "interface Ethernet1/1",
@@ -386,18 +391,26 @@ class TestNxosInterfacesModule(TestNxosModule):
             "duplex auto",
             "no ip forward",
             "no fabric forwarding mode anycast-gateway",
+            "shutdown",
             "interface Ethernet1/3",
             "description ansible",
             "no service-policy type qos output test-policy",
+            "shutdown",
             "interface Ethernet1/3.101",
             "shutdown",
             "description test-sub-intf",
             "interface Ethernet1/4",
             "switchport",
+            "shutdown",
             "interface Ethernet1/5",
             "no logging event port link-status",
             "interface loopback1",
             "description test-loopback",
+            "shutdown",
+            'interface loopback0',
+            'no description loopback0',
+            'interface mgmt0',
+            'no description do not manage mgmt0!',
         ]
         set_module_args(playbook)
         result = self.execute_module(changed=True)
@@ -446,27 +459,20 @@ class TestNxosInterfacesModule(TestNxosModule):
                 # Set default state on non-existent objs; no state changes but need to create intf
                 dict(name="loopback4", enabled=True),
                 dict(name="port-channel4", enabled=True),
-                dict(name="Ethernet1/4.101"),
+                dict(name="Ethernet1/4.101", enabled=False),
             ],
         )
         merged = [
             "interface Ethernet1/1",
-            "no shutdown",
             "no switchport",
-            "interface Ethernet1/2",
-            "shutdown",
             "interface loopback1",
             "shutdown",
             "interface loopback2",
             "no shutdown",
-            "interface loopback3",
-            "no shutdown",
             "interface port-channel3",
             "no shutdown",
-            "interface loopback4",
-            "no shutdown",
-            "interface port-channel4",
-            "no shutdown",
+            "interface Ethernet1/4.101",
+            "shutdown",
         ]
         playbook["state"] = "merged"
         set_module_args(playbook)
@@ -476,30 +482,25 @@ class TestNxosInterfacesModule(TestNxosModule):
         # Test with an older image version which has different defaults
         merged_legacy = [
             "interface Ethernet1/1",
-            "no shutdown",
             "no switchport",
             "interface loopback1",
             "shutdown",
-            "interface Ethernet1/2",
-            "shutdown",
             "interface loopback2",
-            "no shutdown",
-            "interface loopback3",
             "no shutdown",
             "interface port-channel3",
             "no shutdown",
-            "interface loopback4",
-            "no shutdown",
-            "interface port-channel4",
-            "no shutdown",
+            "interface Ethernet1/4.101",
+            "shutdown",
         ]
         result = self.execute_module(changed=True, device="legacy")
         self.assertEqual(sorted(result["commands"]), sorted(merged_legacy))
-
         deleted = [
-            "interface Ethernet1/2",
-            "switchport",
-            "shutdown",
+            'interface Ethernet1/2', 
+            'switchport', 
+            'interface loopback2', 
+            'shutdown', 
+            'interface port-channel3', 
+            'shutdown'
         ]
         playbook["state"] = "deleted"
         set_module_args(playbook)
@@ -507,23 +508,16 @@ class TestNxosInterfacesModule(TestNxosModule):
         self.assertEqual(sorted(result["commands"]), sorted(deleted))
 
         replaced = [
-            "interface Ethernet1/1",
-            "no switchport",
-            "no shutdown",
-            "interface loopback1",
-            "shutdown",
-            "interface Ethernet1/2",
-            "shutdown",
-            "interface loopback2",
-            "no shutdown",
-            "interface loopback3",
-            "no shutdown",
-            "interface port-channel3",
-            "no shutdown",
-            "interface loopback4",
-            "no shutdown",
-            "interface port-channel4",
-            "no shutdown",
+            'interface Ethernet1/1', 
+            'no switchport', 
+            'interface loopback1', 
+            'shutdown', 
+            'interface loopback2', 
+            'no shutdown', 
+            'interface port-channel3', 
+            'no shutdown', 
+            'interface Ethernet1/4.101', 
+            'shutdown'
         ]
         playbook["state"] = "replaced"
         set_module_args(playbook)
@@ -579,12 +573,10 @@ class TestNxosInterfacesModule(TestNxosModule):
             "no switchport",
             "interface Ethernet1/2",
             "no speed 1000",
-            "shutdown",
         ]
         playbook["state"] = "deleted"
         set_module_args(playbook)
         result = self.execute_module(changed=True)
-        print(result["commands"])
         self.assertEqual(sorted(result["commands"]), sorted(deleted))
 
     def test_6_gathered(self):
@@ -692,29 +684,28 @@ class TestNxosInterfacesModule(TestNxosModule):
         self.execute_show_command.return_value = dedent(
             """\
           interface Vlan9
-            no shutdown
+            shutdown
           interface Vlan10
         """,
         )
 
         playbook = dict(
             config=[
-                dict(name="Vlan9", enabled=False),
+                dict(name="Vlan9", enabled=True),
                 dict(name="Vlan10", enabled=True),
-                dict(name="Vlan11", enabled=True),
+                dict(name="Vlan11", enabled=False),
             ],
         )
         merged = [
-            "interface Vlan9",
-            "shutdown",
-            "interface Vlan10",
-            "no shutdown",
-            "interface Vlan11",
-            "no shutdown",
+            'interface Vlan9', 
+            'no shutdown', 
+            'interface Vlan11', 
+            'shutdown'
         ]
         playbook["state"] = "merged"
         set_module_args(playbook)
         result = self.execute_module(changed=True)
+        print(result['commands'])
         self.assertEqual(sorted(result["commands"]), sorted(merged))
 
     def test_mode_mtu(self):
@@ -751,7 +742,6 @@ class TestNxosInterfacesModule(TestNxosModule):
             "mtu 9216",
             "speed 1000",
             "duplex full",
-            "no shutdown",
         ]
         playbook["state"] = "replaced"
         set_module_args(playbook)

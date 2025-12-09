@@ -61,14 +61,27 @@ class InterfacesTemplate(NetworkTemplate):
             "name": "enabled",
             "getval": re.compile(
                 r"""
-                (?P<negate>\s+no)?
-                (?P<shutdown>\s+shutdown)
+                \s+no\sshutdown
+                $""", re.VERBOSE,
+            ),
+            "setval": "no shutdown",
+            "result": {
+                '{{ name }}': {
+                    'enabled': True,
+                },
+            },
+        },
+        {
+            "name": "not_enabled",
+            "getval": re.compile(
+                r"""
+                \s+shutdown
                 $""", re.VERBOSE,
             ),
             "setval": "shutdown",
             "result": {
                 '{{ name }}': {
-                    'enabled': "{{ False if shutdown is defined and negate is not defined else True }}",
+                    'enabled': False,
                 },
             },
         },
